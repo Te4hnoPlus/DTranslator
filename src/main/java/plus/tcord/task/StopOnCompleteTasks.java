@@ -4,6 +4,9 @@ import plus.tcord.JTranslationPack;
 import plus.tcord.TServer;
 
 
+/**
+ * Задача остановки сервера, если все задачи на перевод выполнены
+ */
 public class StopOnCompleteTasks implements TSubTask {
     private final JTranslationPack pack;
     private int attempts = 3;

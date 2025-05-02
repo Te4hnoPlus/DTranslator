@@ -1,12 +1,14 @@
 package plus.tcord;
 
 import plus.tcord.task.PrintStatsTask;
-import plus.tcord.task.QueueBalanceTask;
 import plus.tcord.task.StopOnCompleteTasks;
 
 
+/**
+ * Лаунчер децентрализованного сервера переводов
+ */
 public class TCordMain {
-    public static boolean DEBUG = true;
+    public static boolean DEBUG = false;
 
     public static void main(String[] args) throws Exception {
         if(args.length == 0){
@@ -27,8 +29,9 @@ public class TCordMain {
         System.out.println("Starting server ...");
         server.setHello(lang, "ready");
 
+        server.setPack(pack);
         server.sub(pack);
-        server.sub(new QueueBalanceTask(pack));
+        //server.sub(new QueueBalanceTask(pack));
         server.sub(new PrintStatsTask(pack, 15));
         server.sub(new StopOnCompleteTasks(pack));
 
@@ -45,6 +48,9 @@ public class TCordMain {
     }
 
 
+    /**
+     * Обработка ввода из консоли
+     */
     private static boolean handleConsoleInput(TServer server, JTranslationPack pack) {
         String input = System.console().readLine();
         if(input == null || input.isEmpty()) return true;

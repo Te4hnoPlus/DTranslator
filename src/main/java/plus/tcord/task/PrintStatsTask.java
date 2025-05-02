@@ -4,6 +4,9 @@ import plus.tcord.JTranslationPack;
 import plus.tcord.TServer;
 
 
+/**
+ * Задача по выводу статистики по текущим задачам на перевод
+ */
 public class PrintStatsTask implements TSubTask{
     private final JTranslationPack pack;
     private int curDelay = 0, delay;
@@ -55,6 +58,9 @@ public class PrintStatsTask implements TSubTask{
     }
 
 
+    /**
+     * Оценка времени ожидания до завершения всех задач
+     */
     private String calcAwaitTime(){
         float md = calcMid(times);
         int need = pack.totalTasks() - pack.completedTasks();

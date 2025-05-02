@@ -9,16 +9,19 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.Queue;
+import java.util.Objects;
 import java.util.concurrent.*;
-import java.util.function.Consumer;
 import static plus.tcord.TCordMain.DEBUG;
 
 
+/**
+ * Сервер децентрализованных переводов
+ * Получает задачи из пакета и распределяет их между подключенными узлами
+ */
 public class TServer {
     protected final ConcurrentHashMap<String, CNode> connections = new ConcurrentHashMap<>();
-    protected final Queue<Task> inQueue                          = new LinkedBlockingQueue<>();
     protected final CopyOnWriteArrayList<TSubTask> subprocessors = new CopyOnWriteArrayList<>();
     protected ServerSocket sSocket;
     protected final int port;
@@ -26,24 +29,49 @@ public class TServer {
     protected String hello;
     protected String awaitHello;
     protected boolean active;
-
+    private JTranslationPack pack;
 
     public TServer(int port) {
         this.port = port;
     }
 
 
+    /**
+     * Установить приветственное сообщение
+     */
     public void setHello(String hello, String awaitHello) {
         this.hello = hello;
         this.awaitHello = awaitHello;
     }
 
 
+    /**
+     * Установить целевой пакет переводов
+     */
+    public void setPack(JTranslationPack pack) {
+        this.pack = pack;
+    }
+
+
+    /**
+     * Получить целевой пакет переводов
+     */
+    public JTranslationPack getPack() {
+        return pack;
+    }
+
+
+    /**
+     * Получить текущий статус активности сервера
+     */
     public boolean isActive() {
         return active;
     }
 
 
+    /**
+     * Корректно остановить сервер
+     */
     public void stop() {
         active = false;
         try {
@@ -57,17 +85,6 @@ public class TServer {
             thread = null;
         }
 
-        Queue<Task> qw = inQueue;
-        Task next = qw.poll();
-        while (next != null) {
-            try {
-                next.callback.accept(null);
-            } catch (Throwable e){
-                e.printStackTrace();
-            }
-            next = qw.poll();
-        }
-
         for (TSubTask proc : subprocessors) {
             try {
                 proc.onStop(this);
@@ -78,11 +95,17 @@ public class TServer {
     }
 
 
+    /**
+     * Добавить сабпроцессор
+     */
     public void sub(TSubTask proc) {
         subprocessors.add(proc);
     }
 
 
+    /**
+     * Запустить сервер
+     */
     public void start(boolean curThread) throws IOException {
         active = true;
         sSocket = new ServerSocket(port);
@@ -109,6 +132,9 @@ public class TServer {
     }
 
 
+    /**
+     * Обновление сабпроцессоров
+     */
     private synchronized void loopSubprocessors() {
         while (active){
             if(!subprocessors.isEmpty()){
@@ -127,6 +153,9 @@ public class TServer {
     }
 
 
+    /**
+     * Основной цикл
+     */
     private void loop(){
         while (active){
             try {
@@ -138,6 +167,9 @@ public class TServer {
     }
 
 
+    /**
+     * Получить или создать узел с которого пришло новое соединение
+     */
     private CNode getOrCreateNode(Socket socket) {
         String ip = Connection.ip(socket);
         CNode node = connections.get(ip);
@@ -149,13 +181,19 @@ public class TServer {
     }
 
 
+    /**
+     * Обработка нового соединения
+     */
     private void runLoop() throws IOException {
         Socket socket = sSocket.accept();
-        onNevConnection(new Connection(getOrCreateNode(socket), socket));
+        onNewConnection(new Connection(getOrCreateNode(socket), socket));
     }
 
 
-    protected void onNevConnection(Connection connection){
+    /**
+     * Основной цикл обновления соединения
+     */
+    protected void onNewConnection(Connection connection){
         Thread.startVirtualThread(() -> {
             if(!processHandshake(connection)) return;
             while (active && connection.isConnected()) {
@@ -163,12 +201,14 @@ public class TServer {
                     if (connection.isConnected()) {
                         processConnection(connection);
                     } else {
-                        connection.disconnect();
+                        if(!connection.attempt())
+                            connection.disconnect();
                     }
                 } catch (Exception e) {
                     if(DEBUG)
                         e.printStackTrace();
-                    break;
+                    if(!connection.attempt())
+                        break;
                 }
             }
             connection.disconnect();
@@ -176,6 +216,12 @@ public class TServer {
     }
 
 
+    /**
+     * Рукопожатие между сервером и клиентом
+     * Клиент настраивается на текущий режим перевода в приветственном сообщении и
+     * сообщает о готовности
+     * После чего сервер начинает отправлять задачи на перевод
+     */
     protected boolean processHandshake(Connection connection) {
         try {
             connection.write(hello);
@@ -194,8 +240,11 @@ public class TServer {
     }
 
 
+    /**
+     * Работа с клиентом и отправка задач на перевод
+     */
     protected void processConnection(Connection connection) throws InterruptedException {
-        Task msg = inQueue.poll();
+        String msg = pack.nextItem();
         if(msg == null) {
             if(connection.attempt()) Thread.sleep(1000);
             else connection.disconnect();
@@ -204,46 +253,24 @@ public class TServer {
             connection.resetAttempts();
         }
 
-        connection.write(msg.msg);
+        connection.write(msg);
         String[] result = connection.readAnsw();
 
         String key = result[0];
         String value = result[1];
 
-        if(!key.equals(msg.msg)){
-            throw new RuntimeException("CRITICAL ERROR");
+        if(!Objects.equals(key, msg)){
+            throw new RuntimeException("Key mismatch: " + key + " != " + msg);
         }
 
-        msg.callback.accept(value);
+        pack.set(key, value);
         ++connection.completedTasks;
     }
 
 
-    public void queue(String msg, Consumer<String> callback) {
-        inQueue.add(new Task(msg, callback));
-    }
-
-
-    public int queueSize() {
-        return inQueue.size();
-    }
-
-
-    protected static final class Task {
-        public final String msg;
-        public final Consumer<String> callback;
-
-        Task(String msg, Consumer<String> callback) {
-            this.msg = msg;
-            this.callback = callback;
-        }
-        @Override
-        public String toString() {
-            return msg;
-        }
-    }
-
-
+    /**
+     * Узел с которого пришло соединение
+     */
     public static final class CNode{
         private final HashMap<Integer, Connection> connections = new HashMap<>();
 
@@ -251,11 +278,15 @@ public class TServer {
             connections.put(connection.port(), connection);
         }
 
+
         public boolean remove(int port) {
             return connections.remove(port) != null;
         }
 
 
+        /**
+         * Подсчитать количество завершенных задач этим узлом
+         */
         public int completedTasks() {
             int sum = 0;
             for (Connection connection : connections.values())
@@ -265,13 +296,17 @@ public class TServer {
     }
 
 
+    /**
+     * Конкретное соединение
+     */
     public static final class Connection{
-        public final CNode node;
-        public final Socket socket;
-        public final InputStream input;
-        public final OutputStream out;
-        public byte[] buffer = new byte[1024*10];
-        public int attempts = 10, completedTasks, totalFrom, totalTo;
+        private final CNode node;
+        private final Socket socket;
+        private final InputStream input;
+        private final OutputStream out;
+        private byte[] buffer = new byte[1024*20];
+        private int attempts = 60, completedTasks;
+        private int totalFrom, totalTo;
 
         public Connection(CNode node, Socket socket, InputStream input, OutputStream out) {
             this.node = node;
@@ -279,6 +314,7 @@ public class TServer {
             this.input = input;
             this.out = out;
         }
+
 
         public Connection(CNode node, Socket socket) throws IOException {
             this.node = node;
@@ -288,33 +324,41 @@ public class TServer {
         }
 
 
+        /**
+         * Получить узел
+         */
         public CNode node(){
             return node;
         }
 
 
+        /**
+         * Получить порт конкретного подключения
+         */
         public int port(){
             return socket.getPort();
         }
 
 
+        /**
+         * Получить IP сокета
+         */
         public static String ip(Socket socket){
             return socket.getInetAddress().getHostAddress();
         }
 
 
+        /**
+         * Получить IP узла
+         */
         public String ip(){
             return ip(socket);
         }
 
 
-        private void onCompleteTask(Task task, String result){
-            ++completedTasks;
-            totalFrom += task.msg.length();
-            totalTo   += result.length();
-        }
-
-
+        /**
+         * Получить количество выполненных задач этим подключением
+         */
         public int getCompletedTasks() {
             return completedTasks;
         }
@@ -326,7 +370,7 @@ public class TServer {
 
 
         public void resetAttempts() {
-            attempts = 10;
+            attempts = 60;
         }
 
 
@@ -335,6 +379,9 @@ public class TServer {
         }
 
 
+        /**
+         * Закрыть соединение
+         */
         public void disconnect() {
             if(node.remove(port())){
                 System.out.printf("Connection from %s:%s closed\n", ip(), port());
@@ -349,6 +396,9 @@ public class TServer {
         }
 
 
+        /**
+         * Прочитать ответ с клиента
+         */
         private String[] readAnsw(){
             JsonElement jsn = JsonParser.parseString(readStr());
             JsonObject obj = jsn.getAsJsonObject();
@@ -359,6 +409,9 @@ public class TServer {
         }
 
 
+        /**
+         * Прочитать ответ с клиента как строку
+         */
         public String readStr() {
             int bufLen = 0;
             try {
@@ -368,10 +421,13 @@ public class TServer {
                     e.printStackTrace();
                 disconnect();
             }
-            return new String(buffer, 0, bufLen);
+            return new String(buffer, 0, bufLen, StandardCharsets.UTF_8);
         }
 
 
+        /**
+         * Отправить клиенту строку
+         */
         public void write(String msg) {
             try {
                 out.write(msg.getBytes());

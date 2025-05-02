@@ -15,26 +15,26 @@ public class QueueBalanceTask implements TSubTask {
 
     @Override
     public void onTick(TServer tServer) {
-        int curSize = tServer.queueSize();
-        if(curSize <= 1 && curTasks < 2000){
-            curTasks *= 2;
-        }
-        if(curSize < curTasks + 10) {
-            addTasks(curTasks, tServer);
-        } else if(curSize > curTasks && curSize > 10 && curTasks > 10) {
-            curTasks -= 5;
-        }
+//        int curSize = tServer.queueSize();
+//        if(curSize <= 1 && curTasks < 2000){
+//            curTasks *= 2;
+//        }
+//        if(curSize < curTasks + 10) {
+//            addTasks(curTasks, tServer);
+//        } else if(curSize > curTasks && curSize > 10 && curTasks > 10) {
+//            curTasks -= 5;
+//        }
     }
 
 
     private void addTasks(int count, TServer server) {
-        JTranslationPack pack = this.pack;
-        String next = pack.nextItem();
-        while (next != null && count > 0) {
-            String finalNext = next;
-            server.queue(finalNext, s -> pack.set(finalNext, s));
-            next = pack.nextItem();
-            --count;
-        }
+//        JTranslationPack pack = this.pack;
+//        String next = pack.nextItem();
+//        while (next != null && count > 0) {
+//            String finalNext = next;
+//            server.queue(finalNext, s -> pack.set(finalNext, s));
+//            next = pack.nextItem();
+//            --count;
+//        }
     }
 }

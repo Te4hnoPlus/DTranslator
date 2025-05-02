@@ -6,15 +6,20 @@ import com.google.gson.stream.JsonWriter;
 import plus.tcord.task.TSubTask;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
+/**
+ * Система управления и контроля переводов
+ * 1 Файл - исходный, 2 Файл - перевод
+ *
+ * @author HomaPlus
+ */
 public class JTranslationPack implements TSubTask {
+    public static Comparator<String> LEN_STR = Comparator.comparing(String::length);
+
     protected final HashMap<String, String>           srcLibrary   = new HashMap<>();
     protected final ConcurrentHashMap<String, String> translations = new ConcurrentHashMap<>();
     protected final AtomicInteger completedTasks = new AtomicInteger();
@@ -38,6 +43,9 @@ public class JTranslationPack implements TSubTask {
     }
 
 
+    /**
+     * Пересчитать количество завершенных переводов
+     */
     public void rescanComplededTasks(){
         ConcurrentHashMap<String, String> translations = this.translations;
         int needComplete = 0;
@@ -65,10 +73,16 @@ public class JTranslationPack implements TSubTask {
 
 
     public void resetIterator(){
-        iterator = srcLibrary.keySet().iterator();
+        String[] arr = srcLibrary.keySet().toArray(new String[0]);
+        Arrays.sort(arr, LEN_STR);
+        iterator = Arrays.asList(arr).iterator();
     }
 
 
+    /**
+     * Получить следующее значение, которое надо перевести
+     * @return следующее значение или null если все переведено
+     */
     public synchronized String nextItem(){
         Iterator<String> itr;
         if((itr = this.iterator) == null) return null;
@@ -95,21 +109,31 @@ public class JTranslationPack implements TSubTask {
     }
 
 
+    /**
+     * Сохранить текущее файла переводов
+     */
     public void save(){
         synchronized (trPath) {
             if (lastSavedState == curDataState) return;
             writeFile(trPath, translations, trType);
+            //Создание резервной копии в указанном временном промежутке
             writeFile(trPath+"_b/f_"+(System.currentTimeMillis()/backupDelay)+".json", translations, trType);
             lastSavedState = curDataState;
         }
     }
 
 
+    /**
+     * Получить переведенное значение
+     */
     public String get(String key){
         return translations.getOrDefault(key, key);
     }
 
 
+    /**
+     * Установить переведенное значение
+     */
     public void set(String key, String value){
         if(value == null)return;
         String prev = translations.put(key, value);
@@ -120,6 +144,10 @@ public class JTranslationPack implements TSubTask {
     }
 
 
+    /**
+     * Прочитать json-перевод из файла и записать его в Map
+     * @return Тип файла
+     */
     public static Type readFile(String path, Map<String, String> map) {
         File file = new File(path);
         if(!file.exists() || file.isDirectory()) return Type.ERROR;
@@ -148,6 +176,9 @@ public class JTranslationPack implements TSubTask {
     }
 
 
+    /**
+     * Записать Map в json-файл с указанным типом
+     */
     public static void writeFile(String path, Map<String, String> map, Type type) {
         File file = new File(path);
         createPathIfNeed(file);
@@ -175,6 +206,9 @@ public class JTranslationPack implements TSubTask {
     }
 
 
+    /**
+     * Создать директорию, для несуществующего файла, если она не была создана ранее
+     */
     public static boolean createPathIfNeed(File file){
         File parent = file.getParentFile();
         if(parent != null){
@@ -186,6 +220,7 @@ public class JTranslationPack implements TSubTask {
 
     @Override
     public void onStart(TServer server) {
+        //Сохранение переводов при незапланенном выключении
         Runtime.getRuntime().addShutdownHook(new Thread(this::save));
     }
 
@@ -205,6 +240,9 @@ public class JTranslationPack implements TSubTask {
     }
 
 
+    /**
+     * Тип json-файла
+     */
     public enum Type {
         ERROR, UTF8, UTF8_BOM
     }
