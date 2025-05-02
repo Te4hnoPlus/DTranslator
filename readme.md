@@ -1,4 +1,4 @@
-# Децентрализованный сервер переводов больших массивов текстовых данных
+# Децентрализованный переводчик больших массивов текста
 
 ### Как это работает?
 1. Запустите сервер (`TCord.jar`) на Java-22+ и укажите json файлы (исходный и результат)
@@ -11,6 +11,6 @@
 2. Запустите `python tclient.py <host>:<port>` и укажите хост и порт сервера
 
 ### Готовые сборки и пример переводов в папке 'run'
-Сервер   - run/server/TCord.jar
-Клиент   - run/client/tclient.py
-Переводы - run/translations
+Сервер   - [run/server/TCord.jar](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/server)
+Клиент   - [run/client/tclient.py](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/client)
+Переводы - [run/translations](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/translations)
