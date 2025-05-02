@@ -12,5 +12,7 @@
 
 ### Готовые сборки и пример переводов в папке 'run'
 Сервер   - [run/server/TCord.jar](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/server)
+
 Клиент   - [run/client/tclient.py](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/client)
+
 Переводы - [run/translations](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/translations)
