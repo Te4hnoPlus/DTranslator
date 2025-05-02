@@ -11,8 +11,8 @@
 2. Запустите `python tclient.py <host>:<port>` и укажите хост и порт сервера
 
 ### Готовые сборки и пример переводов в папке 'run'
-Сервер   - [run/server/TCord.jar](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/server)
+- Сервер   - [run/server/TCord.jar](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/server)
 
-Клиент   - [run/client/tclient.py](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/client)
+- Клиент   - [run/client/tclient.py](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/client)
 
-Переводы - [run/translations](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/translations)
+- Переводы - [run/translations](https://github.com/Te4hnoPlus/DTranslator/tree/master/run/translations)
